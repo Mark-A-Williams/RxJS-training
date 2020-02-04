@@ -1,6 +1,6 @@
 import { AfterViewInit, Component, OnInit, ElementRef, ViewChild } from '@angular/core';
-import { from, fromEvent, Observable, of } from 'rxjs';
-import { map, scan, pluck, mergeMap, takeUntil } from 'rxjs/operators';
+import { from, fromEvent, Observable, of, interval } from 'rxjs';
+import { delay, map, mergeMap, pluck, scan, takeUntil, zip, pairwise, take } from 'rxjs/operators';
 
 @Component({
     selector: 'app-root',
@@ -24,12 +24,24 @@ export class AppComponent implements OnInit {
 
     registerSubscriptions(): void {
         // this.numberProducts();
+
         this.clickReport();
         this.mouseMovement();
+
+        // this.pairwiseTest();
 
         const buttonClick = fromEvent(this.coolButton.nativeElement, 'click');
         buttonClick
             .subscribe(() => this.randomisePageColour());
+    }
+
+    pairwiseTest(): void {
+        interval(1000)
+            .pipe(
+                pairwise(),
+                take(5)
+            )
+            .subscribe(console.log);
     }
 
     mouseMovement(): void {
@@ -41,23 +53,31 @@ export class AppComponent implements OnInit {
             .pipe(
                 mergeMap(_ => {
                     return mouseMove$.pipe(
-                        map((mouseEvent: any) => of({
-                            startX: mouseEvent.layerX,
-                            startY: mouseEvent.layerY,
-                            deltaX: mouseEvent.movementX,
-                            deltaY: mouseEvent.movementY
-                        })),
+                        pairwise(),
+                        // optional lag for some reason
+                        // delay(200),
+                        // map(console.log),
+                        map((eventPair: any) => {
+                            if (!!eventPair) {
+                                return of({
+                                    startX: eventPair[0].layerX,
+                                    startY: eventPair[0].layerY,
+                                    endX: eventPair[1].layerX,
+                                    endY: eventPair[1].layerY
+                                });
+                            }
+                        }),
                         takeUntil(mouseUp$)
                     );
                 }),
                 map(move => {
                     if (move.value) {
-                        console.log(move.value);
+                        // console.log(move);
                         this.drawLine(move.value);
                     }
                 })
             )
-            .subscribe(console.log);
+            .subscribe();
     }
 
     drawLine(mouseMove: any): void {
@@ -68,7 +88,7 @@ export class AppComponent implements OnInit {
             context.strokeStyle = 'red';
             context.beginPath();
             context.moveTo(mouseMove.startX, mouseMove.startY);
-            context.lineTo(mouseMove.startX + mouseMove.deltaX/2, mouseMove.startY + mouseMove.deltaY/2);
+            context.lineTo(mouseMove.endX, mouseMove.endY);
             context.stroke();
         }
     }
